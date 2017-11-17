@@ -11,9 +11,9 @@ const complete = (
 
   if (typeof action === 'function') {
     return action({ payload, meta });
-  } else {
-    return { ...action, payload, meta };
   }
+
+  return { ...action, payload, meta };
 };
 
 const send = (action: OfflineAction, dispatch, config: Config, retries = 0) => {
