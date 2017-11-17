@@ -6,11 +6,15 @@ const complete = (
   action: ResultAction,
   success: boolean,
   payload: {}
-): ResultAction => ({
-  ...action,
-  payload,
-  meta: { ...action.meta, success, completed: true }
-});
+): ResultAction => {
+  const meta = { ...action.meta, success, completed: true };
+
+  if (typeof action === 'function') {
+    return action({ payload, meta });
+  } else {
+    return { ...action, payload, meta };
+  }
+};
 
 const send = (action: OfflineAction, dispatch, config: Config, retries = 0) => {
   const metadata = action.meta.offline;
