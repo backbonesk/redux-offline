@@ -73,18 +73,6 @@ const offlineUpdater = function offlineUpdater(
     };
   }
 
-  if (action.type === PERSIST_REHYDRATE) {
-    return {
-      ...state,
-      ...action.payload.offline,
-      online: state.online,
-      netInfo: state.netInfo,
-      retryScheduled: initialState.retryScheduled,
-      retryCount: initialState.retryCount,
-      busy: initialState.busy
-    };
-  }
-
   if (action.type === OFFLINE_SCHEDULE_RETRY) {
     return {
       ...state,
