@@ -4,7 +4,6 @@
 import type {
   OfflineStatusChangeAction,
   OfflineScheduleRetryAction,
-  PersistRehydrateAction,
   OfflineAction,
   OfflineState,
   ResultAction,
@@ -15,8 +14,7 @@ import {
   OFFLINE_SCHEDULE_RETRY,
   OFFLINE_COMPLETE_RETRY,
   OFFLINE_BUSY,
-  RESET_STATE,
-  PERSIST_REHYDRATE
+  RESET_STATE
 } from './constants';
 
 export const initialState: OfflineState = {
@@ -42,7 +40,6 @@ export const buildOfflineUpdater = (dequeue: Dequeue, enqueue: Enqueue) =>
       | OfflineStatusChangeAction
       | OfflineScheduleRetryAction
       | ResultAction
-      | PersistRehydrateAction
   ): OfflineState {
     // Update online/offline status
     if (action.type === OFFLINE_STATUS_CHANGED && !action.meta) {
@@ -50,18 +47,6 @@ export const buildOfflineUpdater = (dequeue: Dequeue, enqueue: Enqueue) =>
         ...state,
         online: action.payload.online,
         netInfo: action.payload.netInfo
-      };
-    }
-
-    if (action.type === PERSIST_REHYDRATE && action.payload) {
-      return {
-        ...state,
-        ...(action.payload.offline || {}),
-        online: state.online,
-        netInfo: state.netInfo,
-        retryScheduled: initialState.retryScheduled,
-        retryCount: initialState.retryCount,
-        busy: initialState.busy
       };
     }
 
