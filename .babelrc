@@ -1,10 +1,13 @@
 {
   "presets": [
-    "latest",
-    "stage-3"
+    "@babel/env"
+    // "latest",
+    // "stage-3"
   ],
   "plugins": [
-    "transform-flow-strip-types",
-    ["transform-class-properties", { "spec": true }]
+    "@babel/transform-flow-strip-types",
+    // "transform-flow-strip-types",
+    ["@babel/plugin-proposal-class-properties", { "spec": true }]
+    // ["transform-class-properties", { "spec": true }]
   ]
 }
