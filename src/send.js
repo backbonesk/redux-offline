@@ -1,43 +1,85 @@
+// @flow
 import { busy, scheduleRetry } from './actions';
 import { JS_ERROR } from './constants';
-import type { Config, OfflineAction, ResultAction } from './types';
+import type {
+  Config,
+  OfflineAction,
+  ResultAction,
+  DefaultAction
+} from './types';
 
-const complete = (
-  action: ResultAction,
-  success: boolean,
+type CompleteSuccessResult = {
+  success: true,
   payload: {}
-): ResultAction => {
-  const meta = { ...action.meta, success, completed: true };
-
-  if (typeof action === 'function') {
-    return action({ payload, meta });
-  }
-
-  return { ...action, payload, meta };
 };
 
-const send = (action: OfflineAction, dispatch, config: Config, retries = 0) => {
+type CompleteFailResult = {
+  success: false,
+  payload?: Error
+};
+
+const complete = (
+  action: DefaultAction | ResultAction,
+  result: CompleteSuccessResult | CompleteFailResult,
+  offlineAction: OfflineAction,
+  config: Config
+): ResultAction => {
+  const { resolveAction, rejectAction } = config.offlineActionTracker;
+  if (result.success) {
+    resolveAction(offlineAction.meta.transaction, result.payload);
+  } else if (result.payload) {
+    rejectAction(offlineAction.meta.transaction, result.payload);
+  }
+  return (({
+    ...action,
+    payload: result.payload,
+    meta: { ...action.meta, success: result.success, completed: true }
+  }: any): ResultAction);
+};
+
+const handleJsError = (error: Error): ResultAction =>
+  (({
+    type: JS_ERROR,
+    meta: { error, success: false, completed: true }
+  }: any): ResultAction);
+
+const send = (
+  action: OfflineAction,
+  dispatch: any => any,
+  config: Config,
+  retries: number = 0
+) => {
   const metadata = action.meta.offline;
   dispatch(busy(true));
   return config
     .effect(metadata.effect, action)
     .then(result => {
-      const commitAction = metadata.commit || {
-        ...config.defaultCommit,
-        meta: { ...config.defaultCommit.meta, offlineAction: action }
-      };
+      const commitAction =
+        metadata.commit ||
+        ({
+          ...config.defaultCommit,
+          meta: { ...config.defaultCommit.meta, offlineAction: action }
+        }: DefaultAction);
       try {
-        dispatch(complete(commitAction, true, result));
-      } catch (e) {
-        console.error(e);
-        dispatch(complete({ type: JS_ERROR, payload: e }, false));
+        return dispatch(
+          complete(
+            commitAction,
+            { success: true, payload: result },
+            action,
+            config
+          )
+        );
+      } catch (error) {
+        return dispatch(handleJsError(error));
       }
     })
     .catch(async error => {
-      const rollbackAction = metadata.rollback || {
-        ...config.defaultRollback,
-        meta: { ...config.defaultRollback.meta, offlineAction: action }
-      };
+      const rollbackAction =
+        metadata.rollback ||
+        ({
+          ...config.defaultRollback,
+          meta: { ...config.defaultRollback.meta, offlineAction: action }
+        }: DefaultAction);
 
       // discard
       let mustDiscard = true;
@@ -50,13 +92,20 @@ const send = (action: OfflineAction, dispatch, config: Config, retries = 0) => {
       if (!mustDiscard) {
         const delay = config.retry(action, retries);
         if (delay != null) {
-          dispatch(scheduleRetry(delay));
-          return;
+          return dispatch(scheduleRetry(delay));
         }
       }
 
-      dispatch(complete(rollbackAction, false, error));
-    });
+      return dispatch(
+        complete(
+          rollbackAction,
+          { success: false, payload: error },
+          action,
+          config
+        )
+      );
+    })
+    .finally(() => dispatch(busy(false)));
 };
 
 export default send;

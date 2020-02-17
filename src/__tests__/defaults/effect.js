@@ -1,4 +1,4 @@
-import effectReconciler from '../../defaults/effect';
+import effectReconciler, { getHeaders } from '../../defaults/effect';
 
 function fetch(body) {
   return Promise.resolve({
@@ -35,6 +35,33 @@ test('effector accept JSON stringified object', () => {
   });
 });
 
+test('effector accept JSON object', () => {
+  const json = {
+    email: 'email@example.com',
+    password: 'p4ssw0rd'
+  };
+
+  global.fetch = jest.fn((url, options) => {
+    expect(options.headers['content-type']).toEqual('application/json');
+    expect(JSON.parse(options.body)).toEqual(json);
+
+    return fetch('');
+  });
+
+  return effectReconciler({ json }).then(body2 => {
+    expect(body2).toEqual(null);
+  });
+});
+
+test('effector rejects invalid JSON object', () => {
+  const circularObject = {};
+  circularObject.self = circularObject;
+
+  return effectReconciler({ json: circularObject }).catch(error => {
+    expect(error).toBeInstanceOf(TypeError);
+  });
+});
+
 test('effector receive JSON and response objects', () => {
   const body = { id: 1234 };
 
@@ -42,5 +69,27 @@ test('effector receive JSON and response objects', () => {
 
   return effectReconciler({}).then(body2 => {
     expect(body2).toEqual(body);
+  });
+});
+
+test('effector accepts content-type and Content-Type headers', () => {
+  const otherHeaders = { 'other-one': 'other-one', 'other-two': 'other-two' };
+  const formUrlEncoded = 'application/x-www-form-urlencoded';
+
+  const noHeaders = undefined;
+  const capitalizedHeaders = {
+    'Content-Type': formUrlEncoded,
+    ...otherHeaders
+  };
+  const lowerCasedHeaders = { 'content-type': formUrlEncoded, ...otherHeaders };
+
+  expect(getHeaders(noHeaders)).toEqual({ 'content-type': 'application/json' });
+  expect(getHeaders(capitalizedHeaders)).toEqual({
+    'content-type': formUrlEncoded,
+    ...otherHeaders
+  });
+  expect(getHeaders(lowerCasedHeaders)).toEqual({
+    'content-type': formUrlEncoded,
+    ...otherHeaders
   });
 });

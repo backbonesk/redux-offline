@@ -2,6 +2,7 @@ import send from '../send';
 import { busy, scheduleRetry } from '../actions';
 import defaultCommitAction from '../defaults/defaultCommit';
 import defaultRollbackAction from '../defaults/defaultRollback';
+import offlineActionTracker from '../offlineActionTracker';
 
 const DELAY = 1000;
 const completedMeta = {
@@ -15,6 +16,7 @@ function setup(partialConfig) {
     retry: () => DELAY,
     defaultCommit: defaultCommitAction,
     defaultRollback: defaultRollbackAction,
+    offlineActionTracker: offlineActionTracker.withoutPromises
   };
 
   return {
@@ -25,7 +27,8 @@ function setup(partialConfig) {
           effect: { url: '/api/resource', method: 'get' },
           commit: { type: 'COMMIT' },
           rollback: { type: 'ROLLBACK' }
-        }
+        },
+        transaction: 0
       }
     },
     config: { ...defaultConfig, ...partialConfig },
@@ -35,8 +38,13 @@ function setup(partialConfig) {
 
 test('dispatches busy action', () => {
   const { action, config, dispatch } = setup();
-  send(action, dispatch, config);
-  expect(dispatch).toBeCalledWith(busy(true));
+  const promise = send(action, dispatch, config);
+
+  expect.assertions(2);
+  return promise.then(() => {
+    expect(dispatch).toBeCalledWith(busy(true));
+    expect(dispatch).toHaveBeenLastCalledWith(busy(false));
+  });
 });
 
 test('requests resource using effects reconciler', () => {
@@ -161,5 +169,40 @@ describe('when request is to be discarded and rollback is undefined', () => {
       expect(dispatch).toBeCalledWith(expect.objectContaining(defaultRollbackAction));
       expect(dispatch).toBeCalledWith(expect.objectContaining(completedMeta));
     });
+  });
+});
+
+describe('offlineActionTracker', () => {
+  let trackerMock;
+  beforeEach(() => {
+    trackerMock = {
+      registerAction: () => {},
+      resolveAction: jest.fn(),
+      rejectAction: jest.fn()
+    }
+  })
+  test('resolves action on successful complete', () => {
+    const effect = () => Promise.resolve();
+    const { action, config, dispatch } = setup({ effect });
+    const promise = send(action, dispatch, {
+      ...config,
+      offlineActionTracker: trackerMock
+    });
+
+    expect.assertions(1);
+    return promise.then(() => expect(trackerMock.resolveAction).toBeCalled());
+  });
+
+  test('rejects action on failed complete', () => {
+    const effect = () => Promise.reject(new Error());
+    const discard = () => true;
+    const { action, config, dispatch } = setup({ effect, discard });
+    const promise = send(action, dispatch, {
+      ...config,
+      offlineActionTracker: trackerMock
+    });
+
+    expect.assertions(1);
+    return promise.then(() => expect(trackerMock.rejectAction).toBeCalled());
   });
 });

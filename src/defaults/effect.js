@@ -11,7 +11,6 @@ export function NetworkError(response: {} | string, status: number) {
 
 // $FlowFixMe
 NetworkError.prototype = Error.prototype;
-NetworkError.prototype.status = null;
 
 const tryParseJSON = (json: string): ?{} => {
   if (!json) {
@@ -32,10 +31,29 @@ const getResponseBody = (res: any): Promise<{} | string> => {
   return res.text();
 };
 
+export const getHeaders = (headers: { [string]: [string] }): {} => {
+  const {
+    'Content-Type': contentTypeCapitalized,
+    'content-type': contentTypeLowerCase,
+    ...restOfHeaders
+  } = headers || {};
+  const contentType =
+    contentTypeCapitalized || contentTypeLowerCase || 'application/json';
+  return { ...restOfHeaders, 'content-type': contentType };
+};
+
 // eslint-disable-next-line no-unused-vars
 export default (effect: any, _action: OfflineAction): Promise<any> => {
-  const { url, ...options } = effect;
-  const headers = { 'content-type': 'application/json', ...options.headers };
+  const { url, json, ...options } = effect;
+  const headers = getHeaders(options.headers);
+
+  if (json !== null && json !== undefined) {
+    try {
+      options.body = JSON.stringify(json);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
   return fetch(url, { ...options, headers }).then(res => {
     if (res.ok) {
       return getResponseBody(res);

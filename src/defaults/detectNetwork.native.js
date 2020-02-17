@@ -1,6 +1,6 @@
 /* eslint no-underscore-dangle: 0 */
-import { AppState, NetInfo } from 'react-native'; // eslint-disable-line
-import LegacyDetectNetwork from './detectNetwork.native.legacy';
+import { AppState } from 'react-native'; // eslint-disable-line
+import NetInfo from '@react-native-community/netinfo'; // eslint-disable-line
 
 class DetectNetwork {
   constructor(callback) {
@@ -31,6 +31,7 @@ class DetectNetwork {
     }
     return false;
   };
+
   /**
    * Sets the connection reachability prop
    * @param {string} reach - connection reachability.
@@ -43,6 +44,7 @@ class DetectNetwork {
     this._reach = reach;
     this._isConnected = this._getConnection(reach);
   };
+
   /**
    * Gets the isConnected prop depending on the connection reachability's value
    * @param {string} reach - connection reachability.
@@ -52,6 +54,7 @@ class DetectNetwork {
    * @private
    */
   _getConnection = reach => reach !== 'none' && reach !== 'unknown';
+
   /**
    * Sets the isConnectionExpensive prop
    * @returns {Promise.<void>} Resolves to true if connection is expensive,
@@ -60,12 +63,14 @@ class DetectNetwork {
    */
   _setIsConnectionExpensive = async () => {
     try {
-      this._isConnectionExpensive = await NetInfo.isConnectionExpensive();
+      const { details } = await NetInfo.fetch();
+      this._isConnectionExpensive = details.isConnectionExpensive;
     } catch (err) {
       // err means that isConnectionExpensive is not supported in iOS
       this._isConnectionExpensive = null;
     }
   };
+
   /**
    * Sets the shouldInitUpdateReach flag
    * @param {boolean} shouldUpdate - Whether the init method should update the reach prop
@@ -75,6 +80,7 @@ class DetectNetwork {
   _setShouldInitUpdateReach = shouldUpdate => {
     this._shouldInitUpdateReach = shouldUpdate;
   };
+
   /**
    * Fetches and sets the connection reachability and the isConnected props,
    * if neither of the AppState and NetInfo event listeners have been called
@@ -83,11 +89,12 @@ class DetectNetwork {
    * @private
    */
   _init = async () => {
-    const connectionInfo = await NetInfo.getConnectionInfo();
+    const connectionInfo = await NetInfo.fetch();
     if (this._shouldInitUpdateReach) {
       this._update(connectionInfo.type);
     }
   };
+
   /**
    * Check changes on props and store and dispatch if neccesary
    * @param {string} reach - connection reachability.
@@ -109,13 +116,13 @@ class DetectNetwork {
    * @private
    */
   _addListeners() {
-    NetInfo.addEventListener('connectionChange', connectionInfo => {
+    NetInfo.addEventListener(connectionInfo => {
       this._setShouldInitUpdateReach(false);
       this._update(connectionInfo.type);
     });
     AppState.addEventListener('change', async () => {
       this._setShouldInitUpdateReach(false);
-      const connectionInfo = await NetInfo.getConnectionInfo();
+      const connectionInfo = await NetInfo.fetch();
       this._update(connectionInfo.type);
     });
   }
@@ -138,6 +145,4 @@ class DetectNetwork {
   };
 }
 
-const isLegacy = typeof NetInfo.getConnectionInfo === 'undefined';
-export default callback =>
-  isLegacy ? new LegacyDetectNetwork(callback) : new DetectNetwork(callback);
+export default callback => new DetectNetwork(callback);
