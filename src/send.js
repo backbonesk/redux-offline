@@ -24,6 +24,11 @@ const complete = (
   offlineAction: OfflineAction,
   config: Config
 ): ResultAction => {
+
+  if (typeof action === 'function') {
+    return action({ payload: result.payload, meta: offlineAction.meta });
+  }
+  
   const { resolveAction, rejectAction } = config.offlineActionTracker;
   if (result.success) {
     resolveAction(offlineAction.meta.transaction, result.payload);
