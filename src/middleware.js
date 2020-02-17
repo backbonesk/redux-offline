@@ -8,12 +8,21 @@ import send from './send';
 const after = (timeout = 0) =>
   new Promise(resolve => setTimeout(resolve, timeout));
 
+let skip = 0;
+
 export const createOfflineMiddleware = (config: Config) => (store: any) => (
   next: any
 ) => (action: any) => {
   // allow other middleware to do their things
   const result = next(action);
   let promise;
+
+  // Do not fire queued actions until all actions in batch(-es) are finished (Support redux-batch-enhancer)
+  if (action.type === 'ENHANCED_BATCHING.PUSH') {
+    skip += 1;
+  } else if (action.type === 'ENHANCED_BATCHING.POP') {
+    skip -= 1;
+  }  
 
   // find any actions to send, if any
   const state: AppState = store.getState();
@@ -30,6 +39,7 @@ export const createOfflineMiddleware = (config: Config) => (store: any) => (
   // if there are any actions in the queue that we are not
   // yet processing, send those actions
   if (
+    !skip &&
     offlineAction &&
     !offline.busy &&
     !offline.retryScheduled &&
@@ -44,7 +54,7 @@ export const createOfflineMiddleware = (config: Config) => (store: any) => (
     });
   }
 
-  if (action.type === OFFLINE_SEND && offlineAction && !offline.busy) {
+  if (!skip && action.type === OFFLINE_SEND && offlineAction && !offline.busy) {
     send(offlineAction, store.dispatch, config, offline.retryCount);
   }
 
